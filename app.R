@@ -30,7 +30,7 @@ ccs_theme <- bs_theme(
 )
 
 dollar_k_m_b_fmt <- function(x){
-  label_number(scale_cut = cut_short_scale(), prefix = "$", accuracy = 0.01)(x)
+  label_number(scale_cut = cut_short_scale(), prefix = "$", accuracy = 0.1)(x)
 }
 
 get_hist_freq_values <- function(p) {
@@ -38,20 +38,20 @@ get_hist_freq_values <- function(p) {
   data.frame(x = d$x, xmin = d$xmin, xmax = d$xmax, y = d$y)
 }
 
-# font_add(family = "Karla", 
-#          regular = "Karla-Regular.ttf",
-#          bold = "Karla-Bold.ttf",
-#          italic = "Karla-Italic.ttf",
-#          bolditalic = "Karla-BoldItalic.ttf")
+# font_add(family = "Aptos", 
+#          regular = "Aptos-Regular.ttf",
+#          bold = "Aptos-Bold.ttf",
+#          italic = "Aptos-Italic.ttf",
+#          bolditalic = "Aptos-BoldItalic.ttf")
 # 
 # showtext_auto()
 
 
 set_flextable_defaults(
-  font.size = 10, font.family = "Karla",
+  font.size = 10, font.family = "Aptos",
   font.color = "#757575",
   table.layout = "fixed",
-  border.color = "#6B8E92")
+  border.color = "#718A96")
 
 rounded_currency <- function(){
   label_number(scale_cut = cut_short_scale(), prefix = "$", accuracy = 0.01)
@@ -102,7 +102,6 @@ ui_file_upload <-
   )
   
 
-
 ui_simulation_results <- 
 
   # two column output for a histogram plot and a summary table
@@ -115,6 +114,17 @@ ui_simulation_results <-
         sliderInput("inp_sld_number_simulations", "Number of Simulations", min = 1000, max = 10000, value = 10000, step = 1000),
         actionButton("inp_btn_run_simulation", "Run Simulation", style = "width: 90%"),
         br(),
+        br(),
+        # --- NEW (1): chart type toggle ---
+        radioButtons(
+          inputId  = "inp_rdo_chart_type",
+          label    = "PowerPoint Chart Type",
+          choices  = c("Editable Chart" = "mschart",
+                       "Static Image"              = "ggplot"),
+          selected = "mschart",
+          inline   = FALSE
+        ),
+        # --- END NEW ---
         br(),
         # https://stackoverflow.com/a/53638835 keep the button hidden until results are gen
         shinyjs::hidden(downloadButton(outputId = "op_btn_download_pptx", label = "Download PowerPoint", style = "width: 90%" ))
@@ -292,6 +302,8 @@ server <- function(input, output, session) {
     
     req(sim_totals())
     
+    n_records <- nrow(donor_data_renamed())
+    
     sim_totals() %>%
       summarize(
         lowest_total = min(sim_totals),
@@ -301,69 +313,136 @@ server <- function(input, output, session) {
         bottom_10_pct = quantile(sim_totals, probs = .05), # the bottom 5 percentile
         top_10_pct = quantile(sim_totals, probs = .95) # the top 10 percentile
       ) %>%
-      mutate(across(.fns = ~ label_number(scale_cut = cut_short_scale(), prefix = "$", accuracy = 0.01)(.x), .names = "{.col}_fmt")) %>%
-      mutate(n90_pct_range = paste(bottom_10_pct_fmt, "-", top_10_pct_fmt))
+      mutate(across(.fns = ~ label_number(scale_cut = cut_short_scale(), prefix = "$", accuracy = 0.1)(.x), .names = "{.col}_fmt")) %>%
+      mutate(n90_pct_range = paste(bottom_10_pct_fmt, "-", top_10_pct_fmt),
+      n_records_fmt = comma(n_records))
   })
+
   
   sim_hist <- reactive({
-    req(sim_totals())
-    
-    g <- ggplot(
-      data = sim_totals(),
-      aes(x = sim_totals)
-    ) +
-      geom_histogram(color = "white", fill = "#65baaf") +
-      theme_wsj() +
-      theme(axis.text.y = element_blank(), 
-            panel.grid.major = element_blank(),
-            panel.background = element_rect(fill = "gray95"),
-            plot.background = element_rect(fill = "gray95")) +
-      scale_x_continuous(labels = rounded_currency(), n.breaks = 8)
-    
-    g
+    req(sim_hist_for_pptx())
+    sim_hist_for_pptx()
   })
+  
+  #create editable bar chart version for PowerPoint export
+  
+  round_to_half_million <- function(x) {
+    round(x / 5e5) * 5e5
+  }
   
   sim_hist_freq_values <- reactive({
     req(sim_hist())
-    
-    df <- get_hist_freq_values(sim_hist())
-    df <- mutate(df,
-                 x_range = paste(dollar_k_m_b_fmt(xmin), "-", dollar_k_m_b_fmt(xmax)))
-    
+
+    df <- get_hist_freq_values(sim_hist()) %>% 
+      mutate(
+        x_range = ifelse(
+          dplyr::row_number() %% 4 == 1,
+          dollar_k_m_b_fmt(.data$x),
+          ""
+        )
+      )
     df
   })
   
-  ms_bar_chart <- reactive({
-    
-    req(sim_hist_freq_values())
-    this_ms_barchart <- ms_barchart(data = sim_hist_freq_values(),
-                                    x = "x_range",
-                                    y = "y") %>% 
-      chart_data_labels(show_legend_key = FALSE) %>% 
-      chart_labels() %>% # remove labels
-      chart_data_fill(values = "#65baaf") %>% 
-      chart_data_stroke(values = "white" ) %>%  # remove border color  
-      chart_ax_x(cross_between = "midCat", major_tick_mark = "none") %>% 
-      chart_settings(gap_width = 0)
-    
-    this_chart_theme <- mschart_theme(
-      legend_position = "n",
-      grid_major_line = fp_border(color = NA),
-      axis_ticks_x = fp_border(color = "black", width = 2),
-      axis_ticks_y = fp_border(color = NA, width = 0),
-      axis_text_y = fp_text(color = NA),
-      axis_text_x = fp_text(font.family = "Karla")
-    )
-    
-    set_theme(this_ms_barchart, this_chart_theme)
-    
-  })
+   ms_bar_chart <- reactive({
   
+     req(sim_hist_freq_values())
+     this_ms_barchart <- ms_barchart(data = sim_hist_freq_values(),
+                                     x = "x_range",
+                                     y = "y") %>%
+       chart_data_labels(show_legend_key = FALSE) %>%
+       chart_labels() %>%
+       chart_data_fill(values = "#133C50") %>%
+       chart_data_stroke(values = "white" ) %>%
+       chart_ax_x(cross_between = "midCat", major_tick_mark = "none") %>%
+       chart_settings(gap_width = 0)
+  
+     this_chart_theme <- mschart_theme(
+       legend_position = "n",
+       grid_major_line = fp_border(color = NA),
+       axis_ticks_x = fp_border(color = "black", width = 1),
+       axis_ticks_y = fp_border(color = NA, width = 0),
+       axis_text_y = fp_text(color = NA),
+       axis_text_x = fp_text(
+         font.family = "Aptos",
+         bold = TRUE,
+         color = "#133C50"
+       )
+     )
+  
+     set_theme(this_ms_barchart, this_chart_theme)
+  
+   })
+  
+   # NEW (2) reactive: ggplot histogram formatted for PowerPoint export
+   
+   choose_x_break_step <- function(x_min, x_max) {
+     span <- x_max - x_min
+     
+     if (span <= 5e6) {
+       5e5       # 0.5M
+     } else if (span <= 2e7) {
+       2e6       # 2M
+     } else if (span <= 5e7) {
+       5e6       # 5M
+     } else if (span <= 1.5e8) {
+       1e7       # 10M
+     } else {
+       2.5e7     # 25M
+     }
+   }
+   
+   sim_hist_for_pptx <- reactive({
+     req(sim_totals())
+     
+     x_vals <- sim_totals()$sim_totals
+     x_min <- floor(min(sim_totals()$sim_totals, na.rm = TRUE) / 5e5) * 5e5
+     x_max <- ceiling(max(sim_totals()$sim_totals, na.rm = TRUE) / 5e5) * 5e5
+     x_step <- choose_x_break_step(x_min, x_max)
+     
+     p <- ggplot(sim_totals(), aes(x = sim_totals)) +
+       geom_histogram(color = "white", fill = "#133C50", bins = 30, linewidth = 0.25) +
+       theme_minimal(base_family = "Aptos", base_size = 10) +
+       theme(
+         axis.text.y      = element_blank(),
+         axis.ticks.y     = element_blank(),
+         axis.title       = element_blank(),
+         axis.line.y      = element_blank(),
+         axis.line.x      = element_blank(),
+         axis.ticks.x     = element_blank(),
+         axis.text.x      = element_text(
+              family = "Aptos",
+              face = "bold",
+              size = 10,
+              color = "#133C50"
+         ),
+         panel.grid.major.x = element_line(color = "#FFFFFF", linewidth = 0.6),
+         panel.grid.major.y = element_line(color = "#FFFFFF", linewidth = 0.6),
+         panel.grid.minor = element_blank(),
+         panel.background = element_rect(fill = "#F3F6F6", color = NA),
+         plot.background  = element_rect(fill = "#F3F6F6", color = NA),
+         plot.margin = margin(t = 8, r = 12, b = 8, l = 12)
+       ) +
+       scale_x_continuous(
+         breaks = seq(x_min, x_max, by = x_step),
+         labels = label_number(
+           scale_cut = cut_short_scale(),
+           prefix    = "$",
+           accuracy  = 0.1
+         ),
+         minor_breaks = NULL,
+         expand = expansion(mult = c(0, 0.01))
+       )
+     
+     p
+   })
+   
   sim_smry_ft <- reactive({
     req(sim_totals_smry())
 
     smry_table_ft <- sim_totals_smry() %>%
       select(
+        `Constituents` = n_records_fmt,
         Lowest = lowest_total_fmt,
         Highest = highest_total_fmt,
         Average = avg_total_fmt,
@@ -372,20 +451,44 @@ server <- function(input, output, session) {
       ) %>%
       pivot_longer(cols = everything()) %>%
       flextable() %>%
-      hline( i = 1, j = 1:2, part = "header", border = fp_border(color = "#6B8E92") ) %>%
-      hline_top(j = 1:2, part = "body", border = fp_border(color = "#6B8E92") ) %>% 
-      merge_at(j = c(1, 2), part = "header") %>%
-      hline( i = 1, j = 1:2, part = "header", border = fp_border(color = "#6B8E92") ) %>%
-    #  hline( i = 1, j = 1:2, part = "body", border = fp_border(color = "red") ) %>%
       set_header_labels(values = list(name = "Simulation Results", value = "")) %>%
-      align(j = 2, align = "right", part = "all") %>%
-      width(width = c(1.2, 2)) 
-
-
- 
-
+      merge_at(j = c(1, 2), part = "header") %>%
+      bg(part = "header", bg = "#133C50") %>%
+      color(part = "header", color = "white") %>%
+      bold(part = "header", bold = TRUE) %>%
+      color(part = "body", color = "#133C50") %>%
+      bg(i = c(1, 3, 5), bg = "#F3F6F6", part = "body") %>%
+      border_remove() %>%
+      hline_top(part = "header", border = fp_border(color = "#133C50", width = 1.5)) %>%
+      hline_bottom(part = "body", border = fp_border(color = "#133C50", width = 1.5)) %>%
+      align(j = 1, align = "left", part = "body") %>%
+      align(j = 2, align = "right", part = "body") %>%
+      align(align = "left", part = "header") %>%
+      fontsize(size = 10, part = "all") %>%
+      padding(padding = 2, part = "all") %>%
+      height(part = "header", height = 0.31) %>% 
+      height(part = "body", height = 0.31) %>%
+      width(j = 1, width = 1.2) %>%
+      width(j = 2, width = 2.0) %>% 
+      set_table_properties(layout = "fixed")
+    
     smry_table_ft
   })
+
+  #     hline( i = 1, j = 1:2, part = "header", border = fp_border(color = "#133C50") ) %>%
+  #     hline_top(j = 1:2, part = "body", border = fp_border(color = "#133C50") ) %>%
+  #     merge_at(j = c(1, 2), part = "header") %>%
+  #     hline( i = 1, j = 1:2, part = "header", border = fp_border(color = "#133C50") ) %>%
+  #   #  hline( i = 1, j = 1:2, part = "body", border = fp_border(color = "red") ) %>%
+  #     set_header_labels(values = list(name = "Simulation Results", value = "")) %>%
+  #     align(j = 2, align = "right", part = "all") %>%
+  #     width(width = c(1.2, 2))
+  # 
+  # 
+  # 
+  # 
+  #   smry_table_ft
+  # })
   
   output$op_plot_histogram <- renderPlot({
     sim_hist()
@@ -427,7 +530,7 @@ server <- function(input, output, session) {
   sim_pres_slides <- reactive({
 
     range_text <- sim_totals_smry()$n90_pct_range
-    brace_img_file <- file.path("curly_brace.png")
+    brace_img_file <- file.path("curly_brace_v2.png")
 
     my_pres <- read_pptx(path = "template.pptx") 
     
@@ -469,7 +572,10 @@ server <- function(input, output, session) {
 
     # add subtitle/descriptor text
     my_pres <- ph_with(my_pres,
-      value = paste("The simulation results highlight that the likeliest fundraising outcomes generated from these prospects fall between", range_text),
+      value = paste0("The simulation results highlight that the likeliest fundraising outcomes generated from these prospects fall between ", 
+                    range_text,
+                    "."
+                    ),
       location = ph_location_label(
         ph_label = "subtitle"
       )
@@ -500,12 +606,48 @@ server <- function(input, output, session) {
     # )
     
     ## add editable chart
-    my_pres <- ph_with(my_pres,
-      value = ms_bar_chart(),
-      location = ph_location_label(
-        ph_label = "left_plot"
+    # my_pres <- ph_with(my_pres,
+    #   value = ms_bar_chart(),
+    #   location = ph_location_label(
+    #     ph_label = "left_plot"
+    #   )
+    # )
+    
+    ## ----- Chart insertion: branch on user's chart-type choice -----
+    if (input$inp_rdo_chart_type == "mschart") {
+      
+      # === EXISTING PATH: editable ms_barchart ===
+      my_pres <- ph_with(my_pres,
+                         value    = ms_bar_chart(),
+                         location = ph_location_label(ph_label = "left_plot")
       )
-    )
+      
+    } else {
+      
+      # === NEW PATH: ggplot as static image ===
+      # 1. Save ggplot to a temporary PNG file
+      tmp_png <- tempfile(fileext = ".png")
+      ggsave(
+        filename = tmp_png,
+        plot     = sim_hist_for_pptx(),
+        width    = 8.27,      # inches — adjust to match your placeholder
+        height   = 4.92,      # inches — adjust to match your placeholder
+        dpi      = 300,
+        bg       = "#F3F6F6"
+      )
+      
+      # 2. Insert the image into the PowerPoint placeholder
+      my_pres <- ph_with(my_pres,
+                         value    = external_img(
+                           src    = tmp_png,
+                           width  = 8.27,
+                           height = 4.82
+                         ),
+                         location = ph_location_label(ph_label = "left_plot")
+      )
+      
+    }
+    ## ----- End chart insertion -----
 
     my_pres <- ph_with(my_pres,
       value = sim_smry_ft(),
@@ -533,7 +675,7 @@ server <- function(input, output, session) {
   # Download Handler
   output$op_btn_download_pptx <- shiny::downloadHandler(
     
-   filename = "MC_simulations_results.pptx",
+   filename = "MC_simulation_results.pptx",
    
    content = function(file) {
      print(x = sim_pres_slides(), target = file)
