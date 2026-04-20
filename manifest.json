@@ -120,7 +120,13 @@
         "Maintainer": "Brian Ripley <Brian.Ripley@R-project.org>",
         "Repository": "CRAN",
         "Date/Publication": "2025-02-28 17:44:52 UTC",
-        "Built": "R 4.5.3; aarch64-apple-darwin20; 2026-03-12 02:04:47 UTC; unix"
+        "Built": "R 4.5.0; aarch64-apple-darwin20; 2025-03-31 21:42:43 UTC; unix",
+        "Archs": "MASS.so.dSYM",
+        "RemoteType": "standard",
+        "RemotePkgRef": "MASS",
+        "RemoteRef": "MASS",
+        "RemoteRepos": "https://cran.rstudio.com",
+        "RemoteSha": "7.3-65"
       }
     },
     "Matrix": {
