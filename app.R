@@ -26,7 +26,7 @@ ccs_theme <- bs_theme(
   info = "#2dccd3",
   warning = "#e1523d",
   danger = "#e1523d",
-  base_font = "Karla"
+  base_font = "Ariel"
 )
 
 dollar_k_m_b_fmt <- function(x){
@@ -38,17 +38,9 @@ get_hist_freq_values <- function(p) {
   data.frame(x = d$x, xmin = d$xmin, xmax = d$xmax, y = d$y)
 }
 
-# font_add(family = "Aptos", 
-#          regular = "Aptos-Regular.ttf",
-#          bold = "Aptos-Bold.ttf",
-#          italic = "Aptos-Italic.ttf",
-#          bolditalic = "Aptos-BoldItalic.ttf")
-# 
-# showtext_auto()
-
 
 set_flextable_defaults(
-  font.size = 10, font.family = "Aptos",
+  font.size = 10, font.family = "Ariel",
   font.color = "#757575",
   table.layout = "fixed",
   border.color = "#718A96")
@@ -364,7 +356,7 @@ server <- function(input, output, session) {
        axis_ticks_y = fp_border(color = NA, width = 0),
        axis_text_y = fp_text(color = NA),
        axis_text_x = fp_text(
-         font.family = "Aptos",
+         font.family = "Ariel",
          bold = TRUE,
          color = "#133C50"
        )
