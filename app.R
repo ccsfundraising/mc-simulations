@@ -26,7 +26,7 @@ ccs_theme <- bs_theme(
   info = "#2dccd3",
   warning = "#e1523d",
   danger = "#e1523d",
-  base_font = "Ariel"
+  base_font = "Arial"
 )
 
 dollar_k_m_b_fmt <- function(x){
@@ -40,7 +40,7 @@ get_hist_freq_values <- function(p) {
 
 
 set_flextable_defaults(
-  font.size = 10, font.family = "Ariel",
+  font.size = 10, font.family = "Arial",
   font.color = "#757575",
   table.layout = "fixed",
   border.color = "#718A96")
@@ -356,7 +356,7 @@ server <- function(input, output, session) {
        axis_ticks_y = fp_border(color = NA, width = 0),
        axis_text_y = fp_text(color = NA),
        axis_text_x = fp_text(
-         font.family = "Ariel",
+         font.family = "Arial",
          bold = TRUE,
          color = "#133C50"
        )
@@ -394,7 +394,7 @@ server <- function(input, output, session) {
      
      p <- ggplot(sim_totals(), aes(x = sim_totals)) +
        geom_histogram(color = "white", fill = "#133C50", bins = 30, linewidth = 0.25) +
-       theme_minimal(base_family = "Aptos", base_size = 10) +
+       theme_minimal(base_family = "Arial", base_size = 10) +
        theme(
          axis.text.y      = element_blank(),
          axis.ticks.y     = element_blank(),
@@ -403,7 +403,7 @@ server <- function(input, output, session) {
          axis.line.x      = element_blank(),
          axis.ticks.x     = element_blank(),
          axis.text.x      = element_text(
-              family = "Aptos",
+              family = "Arial",
               face = "bold",
               size = 10,
               color = "#133C50"
